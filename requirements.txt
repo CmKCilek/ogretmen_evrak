@@ -2,4 +2,4 @@ Flask
 pdfplumber
 pandas
 Werkzeug
-gunicorn app:app
+gunicorn
