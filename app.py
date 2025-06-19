@@ -151,25 +151,16 @@ def index():
                 flash("Sadece PDF dosyası yükleyebilirsiniz.")
                 return redirect(request.url)
         # Ölçek ekle dosya yükleme kontrolü
-        if request.method == "POST":
-            if "file" in request.files and request.files["file"].filename != "":
-                file = request.files["file"]
-                if allowed_file(file.filename):
-                    filename = secure_filename(file.filename)
-                    file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
-                    flash("Dosya başarıyla yüklendi.")
-                    return redirect(url_for("index"))
-                else:
-                    flash("Sadece PDF dosyası yükleyebilirsiniz.")
-                    return redirect(request.url)
-            if "scale_file" in request.files and request.files["scale_file"].filename != "":
-                scale_file = request.files["scale_file"]
-                if allowed_file(scale_file.filename):
-                    scale_filename = secure_filename("scale_" + scale_file.filename)
-                    scale_file.save(os.path.join(app.config["UPLOAD_FOLDER"], scale_filename))
-                    flash("Ölçek dosyası başarıyla yüklendi.")
-                else:
-                    flash("Sadece PDF dosyası yükleyebilirsiniz. (Ölçek)")
+        if "scale_file" in request.files and request.files["scale_file"].filename != "":
+            scale_file = request.files["scale_file"]
+            if allowed_file(scale_file.filename):
+                scale_filename = secure_filename("scale_" + scale_file.filename)
+                scale_file.save(os.path.join(app.config["UPLOAD_FOLDER"], scale_filename))
+                flash("Ölçek dosyası başarıyla yüklendi.")
+                return redirect(url_for("index"))
+            else:
+                flash("Sadece PDF dosyası yükleyebilirsiniz. (Ölçek)")
+                return redirect(request.url)
     headers, data, info = get_merged_table("1donem_dersici1")
     # index.html artık ana klasörde, send_from_directory ile gönder
     return send_from_directory(os.path.dirname(os.path.abspath(__file__)), "index.html")
