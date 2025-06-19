@@ -15,6 +15,13 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
+# Eğer uploads klasöründe scale_dersici.pdf yoksa, ana klasördeki dersici.pdf dosyasını oraya kopyala
+scale_pdf_path = os.path.join(UPLOAD_FOLDER, "scale_dersici.pdf")
+dersici_pdf_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dersici.pdf")
+if not os.path.exists(scale_pdf_path) and os.path.exists(dersici_pdf_path):
+    import shutil
+    shutil.copyfile(dersici_pdf_path, scale_pdf_path)
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
