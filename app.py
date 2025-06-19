@@ -4,9 +4,7 @@ import os
 import pandas as pd
 import pdfplumber
 
-app = Flask(__name__,
-    template_folder=None  # templates klasörü kullanılmayacak
-)
+app = Flask(__name__, template_folder=None)  # templates klasörü kullanılmayacak
 app.secret_key = "secret-key"
 UPLOAD_FOLDER = "uploads"
 ALLOWED_EXTENSIONS = {"pdf"}
@@ -21,6 +19,12 @@ dersici_pdf_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "der
 if not os.path.exists(scale_pdf_path) and os.path.exists(dersici_pdf_path):
     import shutil
     shutil.copyfile(dersici_pdf_path, scale_pdf_path)
+
+# Eğer uploads klasöründe ana PDF yoksa, ana klasördeki dersici.pdf dosyasını oraya kopyala
+main_pdf_path = os.path.join(UPLOAD_FOLDER, "dersici.pdf")
+if not os.path.exists(main_pdf_path) and os.path.exists(dersici_pdf_path):
+    import shutil
+    shutil.copyfile(dersici_pdf_path, main_pdf_path)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -162,7 +166,6 @@ def index():
                 flash("Sadece PDF dosyası yükleyebilirsiniz. (Ölçek)")
                 return redirect(request.url)
     headers, data, info = get_merged_table("1donem_dersici1")
-    # index.html artık ana klasörde, send_from_directory ile gönder
     return send_from_directory(os.path.dirname(os.path.abspath(__file__)), "index.html")
 
 @app.route("/get_data", methods=["POST"])
