@@ -104,41 +104,44 @@
         }
         @media print {
             @page {
-                size: A4 portrait;
-                margin: 10mm 8mm 10mm 8mm;
+                size: A4 landscape;
+                margin: 1cm;
             }
-            body {
-                width: 210mm;
-                height: 297mm;
-                background: #fff;
+            html, body {
+                width: 100%;
+                height: 100%;
+                overflow: visible !important;
             }
-            .table-responsive-a4 {
-                overflow-x: visible !important;
+            .print-page-break, .print-page,
+            #scaleModalContent, .scale-print-area, .table-responsive-a4, .table-a4-portrait, table {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                page-break-before: avoid !important;
+                break-before: avoid !important;
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+                width: 100% !important;
+                table-layout: fixed !important;
             }
-            .table-a4-portrait {
-                font-size: 10px;
-                min-width: 800px;
+            .table, .table-a4-portrait, table {
+                font-size: 10pt !important;
+                width: 100% !important;
+                table-layout: fixed !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+            }
+            .table th, .table td, .table-a4-portrait th, .table-a4-portrait td {
+                padding: 2px 3px !important;
+                word-break: break-word !important;
+                white-space: pre-line !important;
             }
             .no-print {
                 display: none !important;
             }
-            .print-page-break {
-                page-break-after: always;
-                break-after: page;
-                display: block !important;
-                overflow-x: auto !important;
-            }
-            .print-page {
-                display: block !important;
-            }
-            html, body {
-                height: auto !important;
+            body, html {
                 overflow: visible !important;
             }
-            body {
-                background: #fff !important;
-            }
-        }
+}
         .print-page-break {
     page-break-after: always;
     break-after: page;
@@ -170,6 +173,18 @@
 </head>
 <body class="bg-light">
     <div class="container py-5">
+        <!-- Flash mesajları -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'success' if category in ['message', 'success'] else ('warning' if category=='warning' else ('danger' if category=='error' else category)) }} alert-dismissible fade show" role="alert" style="font-size:16px;">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Kapat"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+        {% endwith %}
+
         <!-- Kullanım Talimatı -->
         <div class="alert alert-warning mb-4" style="font-size:15px;">
             <b>KULLANIM TALİMATI</b><br>
@@ -299,7 +314,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
       </div>
       <div class="modal-body">
-        <div id="scaleModalContent"></div>
+        <div id="scaleModalContent" class="scale-print-area"></div>
       </div>
     </div>
   </div>
@@ -495,6 +510,103 @@ function printAllPages() {
         printWindow.print();
         printWindow.close();
     }, 400);
+}
+
+// Yüklü Ana PDF'i Göster
+const showMainPdfBtn = document.getElementById('showMainPdfBtn');
+if (showMainPdfBtn) {
+    showMainPdfBtn.addEventListener('click', function() {
+        fetch('/get_main_pdf', {method: 'POST'})
+        .then(response => response.json())
+        .then(data => {
+            let html = '';
+            if(data.error){
+                html = `<div class="alert alert-danger">${data.error}</div>`;
+            } else if(data.pages && data.pages.length > 0){
+                data.pages.forEach(function(page, pageIdx){
+                    html += `<div class="mb-4">`;
+                    if(page.title){
+                        html += `<div style="text-align:center;font-weight:bold;font-size:15px;margin-bottom:8px;">${page.title}</div>`;
+                    }
+                    if(page.headers && page.headers.length > 0){
+                        html += '<div class="table-responsive-a4"><table class="table table-bordered align-middle table-a4-portrait"><thead><tr>';
+                        page.headers.forEach(function(h){
+                            html += `<th>${h}</th>`;
+                        });
+                        html += '</tr></thead><tbody>';
+                        page.data.forEach(function(row){
+                            html += '<tr>';
+                            row.forEach(function(cell){
+                                html += `<td>${cell}</td>`;
+                            });
+                            html += '</tr>';
+                        });
+                        html += '</tbody></table></div>';
+                    }
+                    if(page.footer_left || page.footer_right){
+                        html += '<div class="row mt-3">';
+                        if(page.footer_left){
+                            html += `<div class="col text-start">${page.footer_left}<br>${page.footer_left2||''}</div>`;
+                        }
+                        if(page.footer_right){
+                            html += `<div class="col text-end">${page.footer_right}<br>${page.footer_right2||''}</div>`;
+                        }
+                        html += '</div>';
+                    }
+                    html += `</div>`;
+                });
+            } else {
+                html = '<div class="alert alert-warning">Veri bulunamadı.</div>';
+            }
+            document.getElementById('mainPdfModalContent').innerHTML = html;
+            var modal = new bootstrap.Modal(document.getElementById('mainPdfModal'));
+            modal.show();
+        })
+        .catch(() => {
+            document.getElementById('mainPdfModalContent').innerHTML = '<div class="alert alert-danger">Bir hata oluştu.</div>';
+            var modal = new bootstrap.Modal(document.getElementById('mainPdfModal'));
+            modal.show();
+        });
+    });
+}
+// Yüklü Ölçeği Göster
+const showScaleBtn = document.getElementById('showScaleBtn');
+if (showScaleBtn) {
+    showScaleBtn.addEventListener('click', function() {
+        fetch('/get_scale', {method: 'POST'})
+        .then(response => response.json())
+        .then(data => {
+            let html = '';
+            if(data.error){
+                html = `<div class="alert alert-danger">${data.error}</div>`;
+            } else if(data.headers && data.headers.length > 0){
+                // Ölçek tablosunu tek sayfaya sığacak şekilde özel kapsayıcı ile oluştur
+                html += '<div class="scale-print-area" style="width:100%;overflow-x:auto;"><table class="table table-bordered align-middle table-a4-portrait" style="width:100%;table-layout:fixed;font-size:10pt;"><thead><tr>';
+                data.headers.forEach(function(h){
+                    html += `<th>${h}</th>`;
+                });
+                html += '</tr></thead><tbody>';
+                data.data.forEach(function(row){
+                    html += '<tr>';
+                    row.forEach(function(cell){
+                        html += `<td>${cell}</td>`;
+                    });
+                    html += '</tr>';
+                });
+                html += '</tbody></table></div>';
+            } else {
+                html = '<div class="alert alert-warning">Veri bulunamadı.</div>';
+            }
+            document.getElementById('scaleModalContent').innerHTML = html;
+            var modal = new bootstrap.Modal(document.getElementById('scaleModal'));
+            modal.show();
+        })
+        .catch(() => {
+            document.getElementById('scaleModalContent').innerHTML = '<div class="alert alert-danger">Bir hata oluştu.</div>';
+            var modal = new bootstrap.Modal(document.getElementById('scaleModal'));
+            modal.show();
+        });
+    });
 }
 </script>
 </body>

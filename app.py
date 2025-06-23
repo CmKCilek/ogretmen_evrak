@@ -3,8 +3,9 @@ from werkzeug.utils import secure_filename
 import os
 import pandas as pd
 import pdfplumber
+import re
 
-app = Flask(__name__, template_folder=None)  # templates klasörü kullanılmayacak
+app = Flask(__name__, template_folder='.')  # index.html ana klasörde
 app.secret_key = "secret-key"
 UPLOAD_FOLDER = "uploads"
 ALLOWED_EXTENSIONS = {"pdf"}
@@ -149,10 +150,10 @@ def index():
             if allowed_file(file.filename):
                 filename = secure_filename(file.filename)
                 file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
-                flash("Dosya başarıyla yüklendi.")
+                flash("Dosya başarıyla yüklendi.", "success")
                 return redirect(url_for("index"))
             else:
-                flash("Sadece PDF dosyası yükleyebilirsiniz.")
+                flash("Sadece PDF dosyası yükleyebilirsiniz.", "warning")
                 return redirect(request.url)
         # Ölçek ekle dosya yükleme kontrolü
         if "scale_file" in request.files and request.files["scale_file"].filename != "":
@@ -160,13 +161,13 @@ def index():
             if allowed_file(scale_file.filename):
                 scale_filename = secure_filename("scale_" + scale_file.filename)
                 scale_file.save(os.path.join(app.config["UPLOAD_FOLDER"], scale_filename))
-                flash("Ölçek dosyası başarıyla yüklendi.")
+                flash("Ölçek dosyası başarıyla yüklendi.", "success")
                 return redirect(url_for("index"))
             else:
-                flash("Sadece PDF dosyası yükleyebilirsiniz. (Ölçek)")
+                flash("Sadece PDF dosyası yükleyebilirsiniz. (Ölçek)", "warning")
                 return redirect(request.url)
     headers, data, info = get_merged_table("1donem_dersici1")
-    return send_from_directory(os.path.dirname(os.path.abspath(__file__)), "index.html")
+    return render_template("index.html")
 
 @app.route("/get_data", methods=["POST"])
 def get_data():
@@ -241,7 +242,6 @@ def get_data():
     try:
         all_pages = []
         with pdfplumber.open(pdf_path) as pdf:
-            # Her sayfa için ayrı bir tablo oluştur
             for page in pdf.pages:
                 page_text = page.extract_text() or ""
                 table = page.extract_table()
@@ -316,10 +316,18 @@ def get_data():
                         idx = page_text.find(tablo_baslik)
                         title_text = page_text[:idx].strip()
                         title_lines = [line.strip() for line in title_text.splitlines() if line.strip()]
-                        page_obj["pdf_title_lines"] = title_lines[:4]
                     else:
                         title_lines = [line.strip() for line in page_text.splitlines() if line.strip()]
-                        page_obj["pdf_title_lines"] = title_lines[:4]
+                    # Sadece başlık kısmında tarih/saat ve metadata satırlarını filtrele
+                    filtered_title_lines = []
+                    for line in title_lines:
+                        lcline = line.lower()
+                        if re.match(r"\d{2}\.\d{2}\.\d{4}", line):
+                            continue
+                        if "about" in lcline or "blank" in lcline:
+                            continue
+                        filtered_title_lines.append(line)
+                    page_obj["pdf_title_lines"] = filtered_title_lines[:4]
                 all_pages.append(page_obj)
         # En az bir sayfada veri yoksa hata döndür
         if not any(p["data"] for p in all_pages):
