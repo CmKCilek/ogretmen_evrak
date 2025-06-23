@@ -3,10 +3,9 @@ from werkzeug.utils import secure_filename
 import os
 import pandas as pd
 import pdfplumber
+import re
 
-app = Flask(__name__,
-    template_folder=None  # templates klasörü kullanılmayacak
-)
+app = Flask(__name__, template_folder='.')  # index.html ana klasörde
 app.secret_key = "secret-key"
 UPLOAD_FOLDER = "uploads"
 ALLOWED_EXTENSIONS = {"pdf"}
@@ -14,6 +13,19 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
+
+# Eğer uploads klasöründe scale_dersici.pdf yoksa, ana klasördeki dersici.pdf dosyasını oraya kopyala
+scale_pdf_path = os.path.join(UPLOAD_FOLDER, "scale_dersici.pdf")
+dersici_pdf_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dersici.pdf")
+if not os.path.exists(scale_pdf_path) and os.path.exists(dersici_pdf_path):
+    import shutil
+    shutil.copyfile(dersici_pdf_path, scale_pdf_path)
+
+# Eğer uploads klasöründe ana PDF yoksa, ana klasördeki dersici.pdf dosyasını oraya kopyala
+main_pdf_path = os.path.join(UPLOAD_FOLDER, "dersici.pdf")
+if not os.path.exists(main_pdf_path) and os.path.exists(dersici_pdf_path):
+    import shutil
+    shutil.copyfile(dersici_pdf_path, main_pdf_path)
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -138,34 +150,24 @@ def index():
             if allowed_file(file.filename):
                 filename = secure_filename(file.filename)
                 file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
-                flash("Dosya başarıyla yüklendi.")
+                flash("Dosya başarıyla yüklendi.", "success")
                 return redirect(url_for("index"))
             else:
-                flash("Sadece PDF dosyası yükleyebilirsiniz.")
+                flash("Sadece PDF dosyası yükleyebilirsiniz.", "warning")
                 return redirect(request.url)
         # Ölçek ekle dosya yükleme kontrolü
-        if request.method == "POST":
-            if "file" in request.files and request.files["file"].filename != "":
-                file = request.files["file"]
-                if allowed_file(file.filename):
-                    filename = secure_filename(file.filename)
-                    file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
-                    flash("Dosya başarıyla yüklendi.")
-                    return redirect(url_for("index"))
-                else:
-                    flash("Sadece PDF dosyası yükleyebilirsiniz.")
-                    return redirect(request.url)
-            if "scale_file" in request.files and request.files["scale_file"].filename != "":
-                scale_file = request.files["scale_file"]
-                if allowed_file(scale_file.filename):
-                    scale_filename = secure_filename("scale_" + scale_file.filename)
-                    scale_file.save(os.path.join(app.config["UPLOAD_FOLDER"], scale_filename))
-                    flash("Ölçek dosyası başarıyla yüklendi.")
-                else:
-                    flash("Sadece PDF dosyası yükleyebilirsiniz. (Ölçek)")
+        if "scale_file" in request.files and request.files["scale_file"].filename != "":
+            scale_file = request.files["scale_file"]
+            if allowed_file(scale_file.filename):
+                scale_filename = secure_filename("scale_" + scale_file.filename)
+                scale_file.save(os.path.join(app.config["UPLOAD_FOLDER"], scale_filename))
+                flash("Ölçek dosyası başarıyla yüklendi.", "success")
+                return redirect(url_for("index"))
+            else:
+                flash("Sadece PDF dosyası yükleyebilirsiniz. (Ölçek)", "warning")
+                return redirect(request.url)
     headers, data, info = get_merged_table("1donem_dersici1")
-    # index.html artık ana klasörde, send_from_directory ile gönder
-    return send_from_directory(os.path.dirname(os.path.abspath(__file__)), "index.html")
+    return render_template("index.html")
 
 @app.route("/get_data", methods=["POST"])
 def get_data():
@@ -240,7 +242,6 @@ def get_data():
     try:
         all_pages = []
         with pdfplumber.open(pdf_path) as pdf:
-            # Her sayfa için ayrı bir tablo oluştur
             for page in pdf.pages:
                 page_text = page.extract_text() or ""
                 table = page.extract_table()
@@ -315,10 +316,18 @@ def get_data():
                         idx = page_text.find(tablo_baslik)
                         title_text = page_text[:idx].strip()
                         title_lines = [line.strip() for line in title_text.splitlines() if line.strip()]
-                        page_obj["pdf_title_lines"] = title_lines[:4]
                     else:
                         title_lines = [line.strip() for line in page_text.splitlines() if line.strip()]
-                        page_obj["pdf_title_lines"] = title_lines[:4]
+                    # Sadece başlık kısmında tarih/saat ve metadata satırlarını filtrele
+                    filtered_title_lines = []
+                    for line in title_lines:
+                        lcline = line.lower()
+                        if re.match(r"\d{2}\.\d{2}\.\d{4}", line):
+                            continue
+                        if "about" in lcline or "blank" in lcline:
+                            continue
+                        filtered_title_lines.append(line)
+                    page_obj["pdf_title_lines"] = filtered_title_lines[:4]
                 all_pages.append(page_obj)
         # En az bir sayfada veri yoksa hata döndür
         if not any(p["data"] for p in all_pages):
